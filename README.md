@@ -10,9 +10,14 @@
 
 设置窗口:尺寸、动作开关、气泡样式、倒计时全部可视化配置:
 
-![image-20261014102816978](docs/settings.png)
+![image-20261019154823962](docs/settings.png)
 
 ## 功能
+
+### 多宠物形象
+- 程序自带 deepseek 精灵图,开箱即用
+- 设置页下拉框可切换通过 `npx petdex@latest install <id>` 安装到 `~/.petdex/pets/` 的其他宠物
+- 所选宠物被删除或素材读取失败时,自动回退到内置 deepseek 形象
 
 ### 动作系统
 - **默认待机**:不操作时播放,眨眼循环
@@ -36,16 +41,18 @@
 
 ## 使用
 
-1. 安装 [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
+1. 安装 [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0),或直接下载 Release 页的自包含单文件版
 2. 双击 `PetdexPet.exe`,宠物出现在桌面右下角
 3. 右键宠物 → **设置...** 打开设置页;**退出** 关闭宠物
+4. 也可以用 `PetdexPet.exe --settings` 直接打开设置页
 
-> 宠物素材(deepseek 精灵图)已内置在程序中,无需额外安装,双击即用。
+> deepseek 宠物素材已内置在程序中,无需额外安装,双击即用。
 
 ## 设置项一览
 
 | 设置项 | 范围 | 说明 |
 | --- | --- | --- |
+| 宠物形象 | 下拉选择 | 自带 deepseek,或 `~/.petdex/pets/` 下已安装的宠物 |
 | 尺寸 | 10%~130% | 宠物在桌面上的大小 |
 | 动作开关 | 开/关 | 逐项启用或禁用动作 |
 | 动作播放时长 | 1~10 秒 | 挥手/开心/害羞/低落/待机变体的播放时长 |
@@ -64,8 +71,8 @@
 ## 技术实现
 
 - WPF 透明置顶窗口(`AllowsTransparency` + `Topmost`),鼠标穿透气泡窗口
-- 宠物包为 WebP 精灵图,使用 Magick.NET 解码为 PNG 后按 8 列 × 9 行(192×208)裁切帧
-- 动画约定(行号 → 动作)为主机端规范,`DispatcherTimer` 逐帧驱动
+- deepseek 精灵图以 EmbeddedResource 内置于 exe;也支持读取 `~/.petdex/pets/` 下 Petdex 包的 WebP 精灵图,使用 Magick.NET 解码为 PNG 后按 8 列 × 9 行(192×208)裁切帧
+- 动画帧延时表提取自 Qoder 原版渲染器(如待机 280/110/110/140/140/320ms),DispatcherTimer 按 30ms 累积驱动;"动作播放时长"对帧延时做等比缩放,保留原版节奏
 - 云朵气泡样式移植自 [DeepSeek-Balance-Whale-Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)
 - 配置持久化:`%APPDATA%\PetdexPet\config.json`
 
@@ -75,3 +82,7 @@
 dotnet build -c Release
 # 产物: bin/Release/net8.0-windows/PetdexPet.exe
 ```
+
+## 发布
+
+推送 `v*` 标签(如 `v1.1`)时,GitHub Actions 会自动以自包含单文件模式构建,打包 zip 并创建 Release,无需安装 .NET 运行时。
