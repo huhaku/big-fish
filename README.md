@@ -40,7 +40,7 @@
 2. 双击 `PetdexPet.exe`,宠物出现在桌面右下角
 3. 右键宠物 → **设置...** 打开设置页;**退出** 关闭宠物
 
-> 前提:已通过 `npx petdex@latest install deepseek` 安装宠物包(程序读取 `~/.petdex/pets/` 下的素材)。
+> 宠物素材(deepseek 精灵图)已内置在程序中,无需额外安装,双击即用。
 
 ## 设置项一览
 

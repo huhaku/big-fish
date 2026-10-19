@@ -477,13 +477,10 @@ namespace PetdexPet
         void Start()
         {
             _bubble.Owner = this;
-            var petDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".petdex", "pets", "deepseek");
-            var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(petDir, "pet.json")));
-            var sheetPath = Path.Combine(petDir, json.RootElement.GetProperty("spritesheetPath").GetString());
-
-            using var image = new MagickImage(sheetPath);
+            var asm = GetType().Assembly;
+            using var stream = asm.GetManifestResourceStream("PetdexPet.Assets.spritesheet.webp")
+                ?? throw new InvalidOperationException("内置精灵图缺失");
+            using var image = new MagickImage(stream);
             byte[] png = image.ToByteArray(MagickFormat.Png);
             var sheet = BitmapFrame.Create(new MemoryStream(png),
                 BitmapCreateOptions.None, BitmapCacheOption.OnLoad);

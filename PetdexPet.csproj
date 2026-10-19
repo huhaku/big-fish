@@ -13,4 +13,8 @@
     <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="14.17.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\spritesheet.webp" />
+  </ItemGroup>
+
 </Project>
