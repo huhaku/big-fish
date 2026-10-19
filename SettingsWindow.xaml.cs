@@ -26,6 +26,11 @@ namespace PetdexPet
                 cb.Unchecked += (s, e) => owner.SetActionEnabled(name, false);
                 ActionList.Children.Add(cb);
             }
+            PetCombo.Items.Add(new ComboBoxItem { Content = "自带 · deepseek酱", Tag = "" });
+            foreach (var (id, name) in owner.GetInstalledPets())
+                PetCombo.Items.Add(new ComboBoxItem { Content = name, Tag = id });
+            PetCombo.SelectedValue = owner.PetId;
+
             BubblesBox.Text = string.Join(Environment.NewLine, owner.Bubbles);
             BubblesBox.TextChanged += (s, e) =>
             {
@@ -55,6 +60,12 @@ namespace PetdexPet
                 : f % 60 == 0 ? $"气泡频率:{f / 60:F0} 分"
                 : $"气泡频率:{(int)(f / 60)} 分 {f % 60:F0} 秒";
             ActionDurText.Text = $"动作播放时长:{ActionDurSlider.Value:F1} 秒";
+        }
+
+        void PetCombo_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (_init || _owner == null) return;
+            _owner.SetPet((PetCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "");
         }
 
         void ActionDur_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)

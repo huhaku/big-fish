@@ -82,6 +82,7 @@ namespace PetdexPet
             "正在确认蒸馏GPT的进度",
         };
         bool _offWorkEnabled;
+        string _petId = "";
         TimeSpan _offWorkTime = new(18, 0, 0);
         string _offWorkText = "距离下班还有 {time}";
         bool _offWorkPinned;
@@ -285,7 +286,12 @@ namespace PetdexPet
                 _bubble.BubbleText.Text = _currentBubbleText;
             };
             _bubble = new BubbleWindow();
-            Loaded += (s, e) => Start();
+            Loaded += (s, e) =>
+            {
+                Start();
+                if (Environment.GetCommandLineArgs().Contains("--settings"))
+                    Settings_Click(this, new RoutedEventArgs());
+            };
         }
 
         public void SetActionEnabled(string name, bool on)
@@ -430,6 +436,9 @@ namespace PetdexPet
                     _offWorkText = ox.GetString();
                 if (json.RootElement.TryGetProperty("offWorkPinned", out var op))
                     _offWorkPinned = op.ValueKind == JsonValueKind.True;
+                if (json.RootElement.TryGetProperty("petId", out var pi) &&
+                    pi.ValueKind == JsonValueKind.String)
+                    _petId = pi.GetString() ?? "";
                 if (json.RootElement.TryGetProperty("enabled", out var arr) &&
                     arr.ValueKind == JsonValueKind.Array)
                 {
@@ -470,30 +479,15 @@ namespace PetdexPet
                 offWorkEnabled = _offWorkEnabled,
                 offWorkTime = OffWorkTimeText,
                 offWorkText = _offWorkText,
-                offWorkPinned = _offWorkPinned
+                offWorkPinned = _offWorkPinned,
+                petId = _petId
             }));
         }
 
         void Start()
         {
             _bubble.Owner = this;
-            var asm = GetType().Assembly;
-            using var stream = asm.GetManifestResourceStream("PetdexPet.Assets.spritesheet.webp")
-                ?? throw new InvalidOperationException("内置精灵图缺失");
-            using var image = new MagickImage(stream);
-            byte[] png = image.ToByteArray(MagickFormat.Png);
-            var sheet = BitmapFrame.Create(new MemoryStream(png),
-                BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
-
-            _rows = new CroppedBitmap[9][];
-            int[] frameCounts = { 6, 8, 8, 4, 5, 8, 6, 6, 6 };
-            for (int r = 0; r < 9; r++)
-            {
-                _rows[r] = new CroppedBitmap[frameCounts[r]];
-                for (int i = 0; i < frameCounts[r]; i++)
-                    _rows[r][i] = new CroppedBitmap(sheet,
-                        new Int32Rect(i * FrameW, r * FrameH, FrameW, FrameH));
-            }
+            LoadSpritesheet();
 
             _timer.Tick += Tick;
             PetImage.Source = _rows[_playing.Row][0];
@@ -519,6 +513,118 @@ namespace PetdexPet
                 if (_looping) _frame = 0;
                 else BackToBase();
             }
+        }
+
+        void LoadSpritesheet()
+        {
+            // 第三方宠物可能被删除或素材损坏,任何一步失败都回退到内置素材
+            var sheetPath = ResolveSheetPath(_petId);
+            if (sheetPath != null && TryBuildRows(sheetPath)) return;
+            _petId = "";
+
+            var asm = GetType().Assembly;
+            using var stream = asm.GetManifestResourceStream("PetdexPet.Assets.spritesheet.webp")
+                ?? throw new InvalidOperationException("内置精灵图缺失");
+            using var image = new MagickImage(stream);
+            BuildRows(image.ToByteArray(MagickFormat.Png));
+        }
+
+        bool TryBuildRows(string path)
+        {
+            try
+            {
+                using var image = new MagickImage(path);
+                BuildRows(image.ToByteArray(MagickFormat.Png));
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        void BuildRows(byte[] png)
+        {
+            var sheet = BitmapFrame.Create(new MemoryStream(png),
+                BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
+
+            _rows = new CroppedBitmap[9][];
+            int[] frameCounts = { 6, 8, 8, 4, 5, 8, 6, 6, 6 };
+            for (int r = 0; r < 9; r++)
+            {
+                _rows[r] = new CroppedBitmap[frameCounts[r]];
+                for (int i = 0; i < frameCounts[r]; i++)
+                    _rows[r][i] = new CroppedBitmap(sheet,
+                        new Int32Rect(i * FrameW, r * FrameH, FrameW, FrameH));
+            }
+        }
+
+        static string PetsRoot => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".petdex", "pets");
+
+        // 未安装或素材缺失时返回 null,调用方回退到内置素材
+        static string ResolveSheetPath(string petId)
+        {
+            if (string.IsNullOrEmpty(petId)) return null;
+            var dir = Path.Combine(PetsRoot, petId);
+            var jsonPath = Path.Combine(dir, "pet.json");
+            if (File.Exists(jsonPath))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(File.ReadAllText(jsonPath));
+                    if (doc.RootElement.TryGetProperty("spritesheetPath", out var sp))
+                    {
+                        var p = Path.Combine(dir, sp.GetString());
+                        if (File.Exists(p)) return p;
+                    }
+                }
+                catch (JsonException) { }
+            }
+            var fallback = Path.Combine(dir, "spritesheet.webp");
+            return File.Exists(fallback) ? fallback : null;
+        }
+
+        public string PetId => _petId;
+
+        public List<(string Id, string Name)> GetInstalledPets()
+        {
+            var list = new List<(string, string)>();
+            if (!Directory.Exists(PetsRoot)) return list;
+            foreach (var dir in Directory.GetDirectories(PetsRoot))
+            {
+                var jsonPath = Path.Combine(dir, "pet.json");
+                if (!File.Exists(jsonPath)) continue;
+                try
+                {
+                    using var doc = JsonDocument.Parse(File.ReadAllText(jsonPath));
+                    var id = doc.RootElement.GetProperty("id").GetString();
+                    if (string.IsNullOrWhiteSpace(id)) continue;
+                    if (ResolveSheetPath(id) == null) continue;
+                    var name = doc.RootElement.TryGetProperty("displayName", out var dn)
+                        ? dn.GetString() : id;
+                    list.Add((id, name ?? id));
+                }
+                catch
+                {
+                    // 第三方 pet.json 可能残缺,跳过该目录
+                }
+            }
+            return list;
+        }
+
+        public void SetPet(string petId)
+        {
+            petId ??= "";
+            if (_petId == petId) return;
+            _petId = petId;
+            LoadSpritesheet();
+            _playForTimer.Stop();
+            _playing = _base;
+            _looping = true;
+            _frame = 0;
+            _elapsedMs = 0;
+            PetImage.Source = _rows[_playing.Row][0];
         }
 
         void Exit_Click(object sender, RoutedEventArgs e) => Close();
